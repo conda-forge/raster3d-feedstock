@@ -18,8 +18,8 @@ requirements:
     - ${{ compiler("m2w64_fortran") if win else compiler("fortran") }}
     - ${{ stdlib("m2w64_c") if win else stdlib("c") }}
     - ${{ "sed" if osx }}
-    - ${{ "make" if unix }}
     - ${{ "m2-base" if win }}
+    - make
   host:
     - libgd
     - libjpeg-turbo
