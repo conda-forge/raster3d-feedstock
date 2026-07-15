@@ -14,12 +14,12 @@ build:
 
 requirements:
   build:
-    - ${{ compiler("c") }}
-    - ${{ compiler("fortran") }}
-    - ${{ stdlib("c") }}
-    - make
-    - if: osx
-      then: sed
+    - ${{ compiler("m2w64_c") if win else compiler("c") }}
+    - ${{ compiler("m2w64_fortran") if win else compiler("fortran") }}
+    - ${{ stdlib("m2w64_c") if win else stdlib("c") }}
+    - ${{ "sed" if osx }}
+    - ${{ "make" if unix }}
+    - ${{ "m2-base" if win }}
   host:
     - libgd
     - libjpeg-turbo
