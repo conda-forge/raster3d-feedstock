@@ -10,27 +10,41 @@ if not defined CPU_COUNT set "CPU_COUNT=1"
 if not defined CC set "CC=gcc"
 if not defined FC set "FC=gfortran"
 
+rem Raster3D belongs under Library in a Windows conda package. Convert paths
+rem separately for MSYS2 install commands and native MinGW compiler flags.
 @REM Raster3D belongs under Library in a Windows conda package. Convert paths
-@REM to the form understood by Makefile recipes executed through MSYS2 sh.
+@REM separately for MSYS2 install commands and native MinGW compiler flags.
 for /F "delims=" %%I in ('cygpath.exe -u "%LIBRARY_PREFIX%"') do set "R3D_PREFIX=%%I"
+for /F "delims=" %%I in ('cygpath.exe -m "%LIBRARY_PREFIX%"') do set "R3D_NATIVE_PREFIX=%%I"
 set "CC_CMD=%CC:\=/%"
 set "FC_CMD=%FC:\=/%"
 
 cd /D "%SRC_DIR%" || exit /b 1
 
+rem Fail early if a host package was installed without its development files.
+@REM Fail early if a host package was installed without its development files.
+if not exist "%LIBRARY_PREFIX%\include\tiff.h" exit /b 1
+if not exist "%LIBRARY_PREFIX%\include\tiffio.h" exit /b 1
+if not exist "%LIBRARY_PREFIX%\include\gd.h" exit /b 1
+
+rem Configure the template before `make linux` copies it to Makefile.incl.
+rem Keep the locally generated GNU import libraries first in the search path;
+rem conda-forge's libgd/libtiff packages otherwise provide MSVC .lib files.
 @REM Configure the template before `make linux` copies it to Makefile.incl.
 @REM Keep the locally generated GNU import libraries first in the search path;
 @REM conda-forge's libgd/libtiff packages otherwise provide MSVC .lib files.
 sed -i.bak ^
   -e "s|^prefix[[:space:]]*=[[:space:]]*/usr/local|prefix = %R3D_PREFIX%|" ^
-  -e "s|^INCDIRS[[:space:]]*=.*|INCDIRS = -I%R3D_PREFIX%/include|" ^
-  -e "s|^LIBDIRS[[:space:]]*=.*|LIBDIRS = -L. -L%R3D_PREFIX%/lib|" ^
+  -e "s|^INCDIRS[[:space:]]*=.*|INCDIRS = -I%R3D_NATIVE_PREFIX%/include|" ^
+  -e "s|^LIBDIRS[[:space:]]*=.*|LIBDIRS = -L. -L%R3D_NATIVE_PREFIX%/lib|" ^
   -e "s|^[[:space:]]*GDEFS[[:space:]]*=.*|GDEFS =|" ^
   Makefile.template || exit /b 1
 del /Q Makefile.template.bak
 
 make SHELL=sh.exe linux || exit /b 1
 
+rem Replace the Linux compiler configuration generated above with the active
+rem conda MinGW-w64 C/gfortran toolchain.
 @REM Replace the Linux compiler configuration generated above with the active
 @REM conda MinGW-w64 C/gfortran toolchain.
 sed -i.bak ^
@@ -42,6 +56,8 @@ sed -i.bak ^
   Makefile.incl || exit /b 1
 del /Q Makefile.incl.bak
 
+rem avs2ps.c includes a Unix-only header and checks WIN32, whereas MinGW-w64
+rem defines _WIN32. GNU sed interprets \n in the replacement as newlines.
 @REM avs2ps.c includes a Unix-only header and checks WIN32, whereas MinGW-w64
 @REM defines _WIN32. GNU sed interprets \n in the replacement as newlines.
 sed -i.bak ^
@@ -50,6 +66,7 @@ sed -i.bak ^
   avs2ps.c || exit /b 1
 del /Q avs2ps.c.bak
 
+rem Generate MinGW-compatible import libraries from the MSVC-built DLLs.
 @REM Generate MinGW-compatible import libraries from the MSVC-built DLLs.
 gendef "%LIBRARY_BIN%\libgd.dll" || exit /b 1
 x86_64-w64-mingw32-dlltool ^
@@ -66,6 +83,7 @@ x86_64-w64-mingw32-dlltool ^
 make SHELL=sh.exe all -j%CPU_COUNT% || exit /b 1
 make SHELL=sh.exe install || exit /b 1
 
+rem Conda activation scripts are not part of upstream's install target.
 @REM Conda activation scripts are not part of upstream's install target.
 if not exist "%LIBRARY_PREFIX%\etc\conda\activate.d" mkdir "%LIBRARY_PREFIX%\etc\conda\activate.d"
 if not exist "%LIBRARY_PREFIX%\etc\conda\deactivate.d" mkdir "%LIBRARY_PREFIX%\etc\conda\deactivate.d"
