@@ -25,12 +25,26 @@ requirements:
     - libjpeg-turbo
     - libpng
     - libtiff
-  run_exports: []  # No shared libraries to worry about
+  run_exports: []  # No shared libraries
 
 tests:
-  - script: |
-      cd examples
-      R3D_LIB=../materials render -gamma 1.1 -png example1.png < example1.r3d
+  - script:
+      - cd examples
+      - if: unix
+        then: |
+          R3D_LIB=../materials render -gamma 1.1 -png example1.png < example1.r3d
+          test -s example1.png
+          R3D_LIB=../materials render -gamma 1.1 -tiff example1.tiff < example1.r3d
+          test -s example1.tiff
+      - if: win
+        then: |
+          set "R3D_LIB=../materials"
+          render -gamma 1.1 -png example1.png < example1.r3d
+          if not exist example1.png exit /b 1
+          for %%F in (example1.png) do if %%~zF EQU 0 exit /b 1
+          render -gamma 1.1 -tiff example1.tiff < example1.r3d
+          if not exist example1.tiff exit /b 1
+          for %%F in (example1.tiff) do if %%~zF EQU 0 exit /b 1
     files:
       source:
         - examples/
