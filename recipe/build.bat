@@ -10,8 +10,6 @@ if not defined CPU_COUNT set "CPU_COUNT=1"
 if not defined CC set "CC=gcc"
 if not defined FC set "FC=gfortran"
 
-rem Raster3D belongs under Library in a Windows conda package. Convert paths
-rem separately for MSYS2 install commands and native MinGW compiler flags.
 @REM Raster3D belongs under Library in a Windows conda package. Convert paths
 @REM separately for MSYS2 install commands and native MinGW compiler flags.
 for /F "delims=" %%I in ('cygpath.exe -u "%LIBRARY_PREFIX%"') do set "R3D_PREFIX=%%I"
@@ -21,30 +19,23 @@ set "FC_CMD=%FC:\=/%"
 
 cd /D "%SRC_DIR%" || exit /b 1
 
-rem Fail early if a host package was installed without its development files.
 @REM Fail early if a host package was installed without its development files.
 if not exist "%LIBRARY_PREFIX%\include\tiff.h" exit /b 1
 if not exist "%LIBRARY_PREFIX%\include\tiffio.h" exit /b 1
 if not exist "%LIBRARY_PREFIX%\include\gd.h" exit /b 1
 
-rem Configure the template before `make linux` copies it to Makefile.incl.
-rem Keep the locally generated GNU import libraries first in the search path;
-rem conda-forge's libgd/libtiff packages otherwise provide MSVC .lib files.
 @REM Configure the template before `make linux` copies it to Makefile.incl.
-@REM Keep the locally generated GNU import libraries first in the search path;
-@REM conda-forge's libgd/libtiff packages otherwise provide MSVC .lib files.
+@REM MinGW ld can consume conda-forge's COFF .lib import libraries directly.
 sed -i.bak ^
   -e "s|^prefix[[:space:]]*=[[:space:]]*/usr/local|prefix = %R3D_PREFIX%|" ^
   -e "s|^INCDIRS[[:space:]]*=.*|INCDIRS = -I%R3D_NATIVE_PREFIX%/include|" ^
-  -e "s|^LIBDIRS[[:space:]]*=.*|LIBDIRS = -L. -L%R3D_NATIVE_PREFIX%/lib|" ^
+  -e "s|^LIBDIRS[[:space:]]*=.*|LIBDIRS = -L%R3D_NATIVE_PREFIX%/lib|" ^
   -e "s|^[[:space:]]*GDEFS[[:space:]]*=.*|GDEFS =|" ^
   Makefile.template || exit /b 1
 del /Q Makefile.template.bak
 
 make SHELL=sh.exe linux || exit /b 1
 
-rem Replace the Linux compiler configuration generated above with the active
-rem conda MinGW-w64 C/gfortran toolchain.
 @REM Replace the Linux compiler configuration generated above with the active
 @REM conda MinGW-w64 C/gfortran toolchain.
 sed -i.bak ^
@@ -56,8 +47,6 @@ sed -i.bak ^
   Makefile.incl || exit /b 1
 del /Q Makefile.incl.bak
 
-rem avs2ps.c includes a Unix-only header and checks WIN32, whereas MinGW-w64
-rem defines _WIN32. GNU sed interprets \n in the replacement as newlines.
 @REM avs2ps.c includes a Unix-only header and checks WIN32, whereas MinGW-w64
 @REM defines _WIN32. GNU sed interprets \n in the replacement as newlines.
 sed -i.bak ^
@@ -66,31 +55,41 @@ sed -i.bak ^
   avs2ps.c || exit /b 1
 del /Q avs2ps.c.bak
 
-rem Generate MinGW-compatible import libraries from the MSVC-built DLLs.
-@REM Generate MinGW-compatible import libraries from the MSVC-built DLLs.
-gendef "%LIBRARY_BIN%\libgd.dll" || exit /b 1
-x86_64-w64-mingw32-dlltool ^
-  --dllname libgd.dll ^
-  --def libgd.def ^
-  --output-lib libgd.dll.a || exit /b 1
-
-gendef "%LIBRARY_BIN%\libtiff.dll" || exit /b 1
-x86_64-w64-mingw32-dlltool ^
-  --dllname libtiff.dll ^
-  --def libtiff.def ^
-  --output-lib libtiff.dll.a || exit /b 1
-
 make SHELL=sh.exe all -j%CPU_COUNT% || exit /b 1
 make SHELL=sh.exe install || exit /b 1
 
-rem Conda activation scripts are not part of upstream's install target.
 @REM Conda activation scripts are not part of upstream's install target.
 if not exist "%LIBRARY_PREFIX%\etc\conda\activate.d" mkdir "%LIBRARY_PREFIX%\etc\conda\activate.d"
 if not exist "%LIBRARY_PREFIX%\etc\conda\deactivate.d" mkdir "%LIBRARY_PREFIX%\etc\conda\deactivate.d"
-copy /Y "%RECIPE_DIR%\activate-raster3d.bat" "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.bat" || exit /b 1
-copy /Y "%RECIPE_DIR%\deactivate-raster3d.bat" "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" || exit /b 1
-copy /Y "%RECIPE_DIR%\activate-raster3d.sh" "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" || exit /b 1
-copy /Y "%RECIPE_DIR%\deactivate-raster3d.sh" "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" || exit /b 1
+
+> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.bat" echo @set "RASTER3D_CONDA_R3D_LIB_WAS_SET="
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.bat" echo @if defined R3D_LIB set "RASTER3D_CONDA_R3D_LIB_WAS_SET=1"
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.bat" echo @set "RASTER3D_CONDA_BACKUP_R3D_LIB=%%R3D_LIB%%"
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.bat" echo @set "R3D_LIB=%%CONDA_PREFIX%%\Library\share\Raster3D\materials"
+
+> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo @if defined RASTER3D_CONDA_R3D_LIB_WAS_SET ^(
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo   @set "R3D_LIB=%%RASTER3D_CONDA_BACKUP_R3D_LIB%%"
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo ^) else ^(
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo   @set "R3D_LIB="
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo ^)
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo @set "RASTER3D_CONDA_BACKUP_R3D_LIB="
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.bat" echo @set "RASTER3D_CONDA_R3D_LIB_WAS_SET="
+
+> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo if [[ ${R3D_LIB+x} ]]; then
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo     export RASTER3D_CONDA_R3D_LIB_WAS_SET=1
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo else
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo     unset RASTER3D_CONDA_R3D_LIB_WAS_SET
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo fi
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo export RASTER3D_CONDA_BACKUP_R3D_LIB="${R3D_LIB-}"
+>> "%LIBRARY_PREFIX%\etc\conda\activate.d\raster3d.sh" echo export R3D_LIB="${CONDA_PREFIX}/Library/share/Raster3D/materials"
+
+> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo if [[ ${RASTER3D_CONDA_R3D_LIB_WAS_SET+x} ]]; then
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo     export R3D_LIB="${RASTER3D_CONDA_BACKUP_R3D_LIB}"
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo else
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo     unset R3D_LIB
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo fi
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo unset RASTER3D_CONDA_BACKUP_R3D_LIB
+>> "%LIBRARY_PREFIX%\etc\conda\deactivate.d\raster3d.sh" echo unset RASTER3D_CONDA_R3D_LIB_WAS_SET
 
 if not exist "%LIBRARY_BIN%\render.exe" exit /b 1
 if not exist "%LIBRARY_BIN%\normal3d.exe" exit /b 1
