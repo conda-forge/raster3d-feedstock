@@ -1,16 +1,16 @@
 context:
-  orig_ver: "3.0-8"
-  sem_ver: "3.0.8"
+  orig_ver: "3.0-9"
+  sem_ver: "3.0.9"
 
 package:
   name: raster3d
   version: ${{ sem_ver }}
 source:
   url: http://www.bmsc.washington.edu/raster3d/Raster3D_${{ orig_ver }}.tar.gz
-  sha256: 8aecd2a6a7f7c0ab9100f6e3affa865f24c55617b76f16a28c401e4dbc6563a4
+  sha256: 063edf90f107a57268a69b0801f6b7ff3a358bd596d1d617656611431033fa3a
 
 build:
-  number: 2
+  number: 0
 
 requirements:
   build:
