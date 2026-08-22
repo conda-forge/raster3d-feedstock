@@ -17,21 +17,48 @@ requirements:
     - ${{ compiler("m2w64_c") if win else compiler("c") }}
     - ${{ compiler("m2w64_fortran") if win else compiler("fortran") }}
     - ${{ stdlib("m2w64_c") if win else stdlib("c") }}
-    # Temporary workaround for broken m2w64-sysroot build 11.
-    # Remove after https://github.com/conda-forge/admin-requests/pull/2297 is applied.
+    # Temporary workaround for MinGW packages rebuilt against the broken
+    # m2w64-sysroot build 11. These versions match the last successful CI run.
     # See https://github.com/conda-forge/m2w64-sysroot-feedstock/issues/23
     - if: win
       then:
         - m2w64-sysroot_win-64 ==12.0.0.r4.gg4f2fc60ca hd8ed1ab_10
         - libwinpthread ==12.0.0.r4.gg4f2fc60ca h57928b3_10
+        - gcc_impl_win-64 ==15.3.0 h9a1039e_1
+        - gfortran_impl_win-64 ==15.3.0 h1f40a57_1
+        - libgcc ==16.1.0 h110b43a_1
+        - libgfortran5 ==16.1.0 h94075d5_1
+        - libgomp ==16.1.0 h8ee18e1_1
+        - libstdcxx ==16.1.0 hae5796f_1
+
     - ${{ "sed" if osx }}
     - ${{ "m2-base" if win }}
     - make
   host:
+    # Runtime packages are solved separately for the host environment.
+    - if: win
+      then:
+        - libwinpthread ==12.0.0.r4.gg4f2fc60ca h57928b3_10
+        - libgcc ==16.1.0 h110b43a_1
+        - libgfortran ==16.1.0 h719f0c7_1
+        - libgfortran5 ==16.1.0 h94075d5_1
+        - libgomp ==16.1.0 h8ee18e1_1
+        - libstdcxx ==16.1.0 hae5796f_1
     - libgd
     - libjpeg-turbo
     - libpng
     - libtiff
+  run:
+    # Keep the packaged Windows executables on the known-working runtime
+    # builds until the broken MinGW packages are removed from repodata.
+    - if: win
+      then:
+        - libwinpthread ==12.0.0.r4.gg4f2fc60ca h57928b3_10
+        - libgcc ==16.1.0 h110b43a_1
+        - libgfortran ==16.1.0 h719f0c7_1
+        - libgfortran5 ==16.1.0 h94075d5_1
+        - libgomp ==16.1.0 h8ee18e1_1
+        - libstdcxx ==16.1.0 hae5796f_1
   run_exports: []  # No shared libraries
 
 tests:
