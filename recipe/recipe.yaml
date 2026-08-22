@@ -17,6 +17,13 @@ requirements:
     - ${{ compiler("m2w64_c") if win else compiler("c") }}
     - ${{ compiler("m2w64_fortran") if win else compiler("fortran") }}
     - ${{ stdlib("m2w64_c") if win else stdlib("c") }}
+    # Temporary workaround for broken m2w64-sysroot build 11.
+    # Remove after https://github.com/conda-forge/admin-requests/pull/2297 is applied.
+    # See https://github.com/conda-forge/m2w64-sysroot-feedstock/issues/23
+    - if: win
+      then:
+        - m2w64-sysroot_win-64 ==12.0.0.r4.gg4f2fc60ca hd8ed1ab_10
+        - libwinpthread ==12.0.0.r4.gg4f2fc60ca h57928b3_10
     - ${{ "sed" if osx }}
     - ${{ "m2-base" if win }}
     - make
